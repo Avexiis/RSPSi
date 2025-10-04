@@ -63,7 +63,7 @@ public class MeshOSRSType2 extends Mesh {
         var47 += var18;
         int var35 = var47;
         var47 += var19;
-        int var10000 = var47 + var20;
+        int endOfMainBlocks = var47 + var20;
 
         vertexCount = var9;
         triangleCount = var10;
@@ -76,14 +76,12 @@ public class MeshOSRSType2 extends Mesh {
         faceIndices2 = new int[var10];
         faceIndices3 = new int[var10];
 
-
         if (var11 > 0) {
             textureMap = new byte[var11];
             texIndices1 = new int[var11];
             texIndices2 = new int[var11];
             texIndices3 = new int[var11];
         }
-
 
         if (var16 == 1)
             packedVertexGroups = new int[var9];
@@ -106,15 +104,13 @@ public class MeshOSRSType2 extends Mesh {
         if (var15 == 1)
             packedTransparencyVertexGroups = new int[var10];
 
-        if(var17 == 1){
-            for (int var51 = 0; var51 < vertexCount; ++var51)
-            {
+        if (var17 == 1) {
+            for (int var51 = 0; var51 < vertexCount; ++var51) {
                 int subgroups = var6.readUByte();
                 animayaGroups[var51] = new int[subgroups];
                 animayaScales[var51] = new int[subgroups];
 
-                for (int var53 = 0; var53 < subgroups; ++var53)
-                {
+                for (int var53 = 0; var53 < subgroups; ++var53) {
                     animayaGroups[var51][var53] = var6.readUByte();
                     animayaScales[var51][var53] = var6.readUByte();
                 }
@@ -180,19 +176,18 @@ public class MeshOSRSType2 extends Mesh {
         var7.setPosition(var30);
         var8.setPosition(var27);
 
-
         for (var40 = 0; var40 < var10; var40++) {
             triangleColors[var40] = var4.readUShort();
             if (var12 == 1) {
-               var41 = var5.readUByte();
-                if((var41 & 1) == 1) {
+                var41 = var5.readUByte();
+                if ((var41 & 1) == 1) {
                     this.triangleInfo[var40] = 1;
                 } else {
                     this.triangleInfo[var40] = 0;
                 }
 
-                if((var41 & 2) == 2) {
-                    this.faceTexture[var40] = (byte)(var41 >> 2);
+                if ((var41 & 2) == 2) {
+                    this.faceTexture[var40] = (byte) (var41 >> 2);
                     this.faceMaterial[var40] = this.triangleColors[var40];
                     this.triangleColors[var40] = 127;
                     if (this.faceMaterial[var40] != -1) {
@@ -216,7 +211,6 @@ public class MeshOSRSType2 extends Mesh {
                 packedTransparencyVertexGroups[var40] = var8.readUByte();
 
         }
-
 
         var4.setPosition(var31);
         var5.setPosition(var25);
@@ -274,9 +268,24 @@ public class MeshOSRSType2 extends Mesh {
 
         for (var44 = 0; var44 < var11; ++var44) {
             this.textureMap[var44] = 0;
-            this.texIndices1[var44] = (short)var4.readUShort();
-            this.texIndices2[var44] = (short)var4.readUShort();
-            this.texIndices3[var44] = (short)var4.readUShort();
+            this.texIndices1[var44] = (short) var4.readUShort();
+            this.texIndices2[var44] = (short) var4.readUShort();
+            this.texIndices3[var44] = (short) var4.readUShort();
+        }
+
+        int saved = var4.getPosition();
+        if (endOfMainBlocks < var1.length) {
+            var4.setPosition(endOfMainBlocks);
+            int hasOffsets = var4.readUByte();
+            if (hasOffsets == 1) {
+                int remaining = var1.length - var4.getPosition();
+                int toSkip = Math.min(triangleCount, remaining);
+                var4.skip(toSkip);
+            } else {
+                var4.setPosition(saved);
+            }
+        } else {
+            var4.setPosition(saved);
         }
 
         if (this.faceTexture != null) {
@@ -285,7 +294,9 @@ public class MeshOSRSType2 extends Mesh {
             for (var45 = 0; var45 < var10; ++var45) {
                 var46 = this.faceTexture[var45] & 255;
                 if (var46 != 255) {
-                    if (this.faceIndices1[var45] == (this.texIndices1[var46] & '\uffff') && this.faceIndices2[var45] == (this.texIndices2[var46] & '\uffff') && this.faceIndices3[var45] == (this.texIndices3[var46] & '\uffff')) {
+                    if (this.faceIndices1[var45] == (this.texIndices1[var46] & '\uffff')
+                            && this.faceIndices2[var45] == (this.texIndices2[var46] & '\uffff')
+                            && this.faceIndices3[var45] == (this.texIndices3[var46] & '\uffff')) {
                         this.faceTexture[var45] = -1;
                     } else {
                         var48 = true;

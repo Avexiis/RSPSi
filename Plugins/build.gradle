@@ -1,15 +1,3 @@
-buildscript {
-    repositories {
-        maven {
-            url "https://plugins.gradle.org/m2/"
-        }
-    }
-}
-
-plugins {
-    id "com.github.harbby.gradle.serviceloader" version "1.1.9" apply false
-}
-
 subprojects {
     group = 'Plugins'
     version = '1.8.0-BETA'
@@ -26,23 +14,23 @@ subprojects {
     }
 
     dependencies {
-        implementation project(':Editor')
+        compileOnly project(':Editor')
     }
 
-
-    task copyJarToBin(type: Copy) {
-        from jar.outputs
-        into new File(project(':Editor').projectDir, "/plugins/inactive")
+    tasks.register('copyJarToBin', Copy) {
+        dependsOn tasks.named('jar')
+        from(tasks.named('jar').flatMap { it.archiveFile })
+        into new File(project(':Editor').projectDir, 'plugins/active')
     }
 
+    tasks.register('buildAndMove') {
+        dependsOn tasks.named('compileJava'),
+                tasks.named('serviceLoaderBuild'),
+                tasks.named('jar'),
+                tasks.named('copyJarToBin')
+    }
 
-    task buildAndMove()
-    buildAndMove.dependsOn(compileJava, serviceLoaderBuild, jar, copyJarToBin)
-
-    serviceLoaderBuild.mustRunAfter(compileJava)
-    jar.mustRunAfter(serviceLoaderBuild)
-    copyJarToBin.mustRunAfter(jar)
-
-
-    buildAndMove.group = 'plugin'
+    tasks.named('build') {
+        dependsOn tasks.named('copyJarToBin')
+    }
 }
