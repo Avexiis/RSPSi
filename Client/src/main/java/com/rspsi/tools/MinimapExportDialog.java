@@ -12,11 +12,11 @@ public final class MinimapExportDialog extends JDialog {
     private final JRadioButton rbGame = new JRadioButton("Game Scale (64x64px Regions)", true);
     private final JRadioButton rbFull = new JRadioButton("Full Scale (256x256px Regions)");
 
-    private final JCheckBox useHash = new JCheckBox("Enter bounds as region hash (rx<<8 | ry)");
+    private final JCheckBox useHash = new JCheckBox("Enter bounds as region hash");
     private final JTextField minRx = new JTextField("18", 5);
     private final JTextField minRy = new JTextField("19", 5);
-    private final JTextField maxRx = new JTextField("61", 5);
-    private final JTextField maxRy = new JTextField("149", 5);
+    private final JTextField maxRx = new JTextField("66", 5);
+    private final JTextField maxRy = new JTextField("196", 5);
 
     private final JTextField minHash = new JTextField("", 8);
     private final JTextField maxHash = new JTextField("", 8);
@@ -38,7 +38,7 @@ public final class MinimapExportDialog extends JDialog {
     }
 
     private MinimapExportDialog(Component parent) {
-        super(SwingUtilities.getWindowAncestor(parent), "Minimap Export", ModalityType.APPLICATION_MODAL);
+        super(SwingUtilities.getWindowAncestor(parent), "Atlas Map Export", ModalityType.APPLICATION_MODAL);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
         JPanel p = new JPanel(new GridBagLayout());
@@ -56,22 +56,22 @@ public final class MinimapExportDialog extends JDialog {
         JPanel boundsPanel = new JPanel(new GridBagLayout());
         GridBagConstraints bc = new GridBagConstraints();
         bc.insets = new Insets(2,2,2,2); bc.anchor = GridBagConstraints.WEST;
-        bc.gridx=0; bc.gridy=0; boundsPanel.add(new JLabel("min rx:"), bc);
+        bc.gridx=0; bc.gridy=0; boundsPanel.add(new JLabel("Min rX:"), bc);
         bc.gridx=1; boundsPanel.add(minRx, bc);
-        bc.gridx=2; boundsPanel.add(new JLabel("min ry:"), bc);
+        bc.gridx=2; boundsPanel.add(new JLabel("Min rY:"), bc);
         bc.gridx=3; boundsPanel.add(minRy, bc);
 
-        bc.gridx=0; bc.gridy=1; boundsPanel.add(new JLabel("max rx:"), bc);
+        bc.gridx=0; bc.gridy=1; boundsPanel.add(new JLabel("Max rX:"), bc);
         bc.gridx=1; boundsPanel.add(maxRx, bc);
-        bc.gridx=2; boundsPanel.add(new JLabel("max ry:"), bc);
+        bc.gridx=2; boundsPanel.add(new JLabel("Max rY:"), bc);
         bc.gridx=3; boundsPanel.add(maxRy, bc);
 
         JPanel hashPanel = new JPanel(new GridBagLayout());
         GridBagConstraints hc = new GridBagConstraints();
         hc.insets = new Insets(2,2,2,2); hc.anchor = GridBagConstraints.WEST;
-        hc.gridx=0; hc.gridy=0; hashPanel.add(new JLabel("min hash:"), hc);
+        hc.gridx=0; hc.gridy=0; hashPanel.add(new JLabel("Min Hash:"), hc);
         hc.gridx=1; hashPanel.add(minHash, hc);
-        hc.gridx=2; hashPanel.add(new JLabel("max hash:"), hc);
+        hc.gridx=2; hashPanel.add(new JLabel("Max Hash:"), hc);
         hc.gridx=3; hashPanel.add(maxHash, hc);
 
         c.gridx=0; c.gridy=3; c.gridwidth=2;
@@ -120,19 +120,19 @@ public final class MinimapExportDialog extends JDialog {
 
         int aMinRx, aMinRy, aMaxRx, aMaxRy;
         if (useHash.isSelected()) {
-            int h0 = parseInt(minHash.getText().trim(), "min hash");
-            int h1 = parseInt(maxHash.getText().trim(), "max hash");
+            int h0 = parseInt(minHash.getText().trim(), "Min Hash");
+            int h1 = parseInt(maxHash.getText().trim(), "Max Hash");
             int rx0 = (h0 >> 8) & 0x3FF, ry0 = h0 & 0xFF;
             int rx1 = (h1 >> 8) & 0x3FF, ry1 = h1 & 0xFF;
             aMinRx = Math.min(rx0, rx1); aMaxRx = Math.max(rx0, rx1);
             aMinRy = Math.min(ry0, ry1); aMaxRy = Math.max(ry0, ry1);
         } else {
-            aMinRx = parseInt(minRx.getText().trim(), "min rx");
-            aMinRy = parseInt(minRy.getText().trim(), "min ry");
-            aMaxRx = parseInt(maxRx.getText().trim(), "max rx");
-            aMaxRy = parseInt(maxRy.getText().trim(), "max ry");
+            aMinRx = parseInt(minRx.getText().trim(), "Min rX");
+            aMinRy = parseInt(minRy.getText().trim(), "Min rY");
+            aMaxRx = parseInt(maxRx.getText().trim(), "Max rX");
+            aMaxRy = parseInt(maxRy.getText().trim(), "Max rY");
             if (aMinRx > aMaxRx || aMinRy > aMaxRy)
-                throw new IllegalArgumentException("min must be <= max for rx/ry.");
+                throw new IllegalArgumentException("Min must be <= Max for rX/rY.");
         }
         return new Result(aMinRx, aMinRy, aMaxRx, aMaxRy, tileSize);
     }
