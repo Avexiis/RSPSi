@@ -25,7 +25,6 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -33,15 +32,20 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Exports minimap region strips with optional scale, stitches them, and cleans up.
- * NOTE: This takes a fair bit of time to finish once started.
- * Compressed (64x64) mode may not be functional at this time. Some caches cause an error, use full scale if so.
+ * Exports minimap region strips with optional scale, stitches them,
+ * and deletes intermediate slices. Includes a small Swing progress console.
+ *
+ * Viewport mode: each region is rendered with a full PAD_TILES margin
+ * around the 64x64 core so sprites at edges are not clipped. Strips include
+ * global padding; the final stitched atlas overlaps adjacent strips by
+ * exactly the padding height so padding exists only once at the very top
+ * and bottom (and left/right).
  */
 public final class MinimapAtlasExporter {
     private MinimapAtlasExporter() {}
 
     private static final int MIN_RX = 18, MIN_RY = 19;
-    private static final int MAX_RX = 66, MAX_RY = 196;
+    private static final int MAX_RX = 61, MAX_RY = 149;
 
     private static final int HI_BASE_PX = 4;
     private static final int PAD_TILES = 5;
@@ -54,8 +58,6 @@ public final class MinimapAtlasExporter {
     private static final long   MAP_REQUEST_TIMEOUT_MS = 60_000;
 
     private static final Pattern STRIP_NAME_RE = Pattern.compile("\\.y\\s*(\\d+)-(\\d+)\\.png$", Pattern.CASE_INSENSITIVE);
-
-    private static final ConcurrentHashMap<Integer, byte[]> MAP_CACHE = new ConcurrentHashMap<>(1 << 12);
 
     private static final class ProgressConsole {
         private final JFrame frame;
@@ -202,15 +204,16 @@ public final class MinimapAtlasExporter {
         final int padPx = PAD_TILES * (coreTileSize == 256 ? HI_BASE_PX : 1);
         final int regionW = coreTileSize + 2 * padPx;
         final int regionH = coreTileSize + 2 * padPx;
-        final int stripCanvasW = cols * coreTileSize;
+        final int stripCanvasW = cols * coreTileSize + 2 * padPx;
+
         int remainingRows = rows;
         int currentTopRy = maxRy;
-
         for (int s = 0; s < stripCount; s++) {
             int thisRows = Math.min(rowsPerStrip, remainingRows);
             int yTop = currentTopRy;
             int yBottom = currentTopRy - (thisRows - 1);
-            final int stripCanvasH = thisRows * coreTileSize;
+
+            final int stripCanvasH = thisRows * coreTileSize + 2 * padPx;
 
             BufferedImage strip = new BufferedImage(stripCanvasW, stripCanvasH, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g = strip.createGraphics();
@@ -226,14 +229,9 @@ public final class MinimapAtlasExporter {
                         }
                         BufferedImage tileViewport = renderRegionViewport(rx, ry, plane, coreTileSize, regionW, regionH, padPx);
                         if (tileViewport != null && !isMostlyBlack(tileViewport, BLACK_SKIP_THRESHOLD)) {
-                            int drawX = (rx - minRx) * coreTileSize;
-                            int drawY = rowOffsetYCore;
-                            g.drawImage(
-                                    tileViewport,
-                                    drawX, drawY, drawX + coreTileSize, drawY + coreTileSize,
-                                    padPx, padPx, padPx + coreTileSize, padPx + coreTileSize,
-                                    null
-                            );
+                            int drawX = padPx + (rx - minRx) * coreTileSize;
+                            int drawY = padPx + rowOffsetYCore;
+                            g.drawImage(tileViewport, drawX - padPx, drawY - padPx, null);
                         }
                         pc.step();
                     }
@@ -296,10 +294,21 @@ public final class MinimapAtlasExporter {
 
         Collections.sort(strips, Comparator.comparingInt((StripInfo si) -> si.top).reversed());
 
-        int atlasW = strips.stream().mapToInt(s -> s.img.getWidth()).max().orElse(0);
-        int expectedH = strips.stream().mapToInt(s -> s.img.getHeight()).sum();
+        int rowPx = coreTileSize;
+        int padPx = 0;
+        {
+            StripInfo s0 = strips.get(0);
+            int rowsInStrip0 = Math.max(1, s0.top - s0.bottom + 1);
+            int stripH0 = s0.img.getHeight();
+            int raw = stripH0 - rowsInStrip0 * rowPx;
+            padPx = Math.max(0, raw / 2);
+        }
 
-        BufferedImage atlas = new BufferedImage(atlasW, expectedH, BufferedImage.TYPE_INT_ARGB);
+        int atlasW = strips.stream().mapToInt(s -> s.img.getWidth()).max().orElse(0);
+        int expectedMinW = atlasW;
+        int expectedH = totalRows * rowPx + 2 * padPx;
+
+        BufferedImage atlas = new BufferedImage(expectedMinW, expectedH, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = atlas.createGraphics();
         g.setComposite(AlphaComposite.SrcOver);
         try {
@@ -307,9 +316,16 @@ public final class MinimapAtlasExporter {
             for (int i = 0; i < strips.size(); i++) {
                 StripInfo s = strips.get(i);
                 BufferedImage img = s.img;
-                g.drawImage(img, 0, y, null);
-                pc.logln("[Stitch] Pasted strip " + (i + 1) + " at y=" + y);
-                y += img.getHeight();
+                if (i == 0) {
+                    g.drawImage(img, 0, 0, null);
+                    y += img.getHeight() - 2 * padPx;
+                } else {
+                    g.drawImage(img, 0, y, null);
+                    y += img.getHeight() - 2 * padPx;
+                }
+                if ((i & 1) == 1) {
+                    pc.logln("[Stitch] Pasted strip " + (i + 1) + " at y=" + (i == 0 ? 0 : (y - img.getHeight() + 2 * padPx)));
+                }
             }
         } finally {
             g.dispose();
@@ -341,7 +357,8 @@ public final class MinimapAtlasExporter {
         return MapIndexLoader.resolve(rx, ry, MapType.LANDSCAPE) != -1;
     }
 
-    private static BufferedImage renderRegionViewport(int rx, int ry, int plane, int coreTileSize, int regionW, int regionH, int padPx) throws Exception {
+    private static BufferedImage renderRegionViewport(int rx, int ry, int plane,
+                                                      int coreTileSize, int regionW, int regionH, int padPx) throws Exception {
         int landId = MapIndexLoader.getLandscapeId(rx, ry);
         if (landId == -1) return null;
         byte[] land = requestMapSync(landId, (rx << 8) | ry);
@@ -379,7 +396,6 @@ public final class MinimapAtlasExporter {
         final int oy = PAD_TILES;
 
         mr.unpackTiles(land, ox, oy, rx, ry);
-
         if (eLand != null) mr.unpackTiles(eLand, ox + 64, oy, rx + 1, ry);
         if (wLand != null) mr.unpackTiles(wLand, ox - 64, oy, rx - 1, ry);
         if (nLand != null) mr.unpackTiles(nLand, ox, oy + 64, rx, ry + 1);
@@ -390,7 +406,6 @@ public final class MinimapAtlasExporter {
         if (swLand != null) mr.unpackTiles(swLand, ox - 64, oy - 64, rx - 1, ry - 1);
 
         ArrayList<PendingMark> marks = new ArrayList<>();
-
         if (obj != null)  unpackObjectsSelective(mr, sg, obj,  ox, oy, sceneW, sceneH, marks);
         if (eObj != null) unpackObjectsSelective(mr, sg, eObj, ox + 64, oy, sceneW, sceneH, marks);
         if (wObj != null) unpackObjectsSelective(mr, sg, wObj, ox - 64, oy, sceneW, sceneH, marks);
@@ -407,6 +422,7 @@ public final class MinimapAtlasExporter {
         final int hiW = (coreTileSize == 256) ? totalTiles * HI_BASE_PX : totalTiles;
         final int hiH = hiW;
         final int pxPerTile = (coreTileSize == 256) ? HI_BASE_PX : 1;
+
         int[] hi = new int[hiW * hiH];
 
         for (int ty = -PAD_TILES; ty < 64 + PAD_TILES; ty++) {
@@ -414,9 +430,9 @@ public final class MinimapAtlasExporter {
             int yPix = (totalTiles - 1 - (ty + PAD_TILES)) * pxPerTile;
             for (int tx = -PAD_TILES; tx < 64 + PAD_TILES; tx++) {
                 int sx = ox + tx;
+
                 boolean bridge = isBridgeTile(mr, sx, sy);
                 int tileZ = plane + (bridge ? 1 : 0);
-
                 if (tileZ > 3) continue;
 
                 if ((mr.tileFlags[plane][sx][sy] & 0x18) == 0) {
@@ -435,7 +451,9 @@ public final class MinimapAtlasExporter {
         }
 
         overlayObjectsIntoHi(sg, mr, plane, ox, oy, hi, hiW, hiH, pxPerTile);
+
         drawCollectedSpritesAndIcons(marks, plane, ox, oy, mr, hi, hiW, hiH, pxPerTile);
+
         BufferedImage out = new BufferedImage(hiW, hiH, BufferedImage.TYPE_INT_ARGB);
 
         int[] argb = new int[hi.length];
@@ -511,7 +529,6 @@ public final class MinimapAtlasExporter {
             int sx = m.tx, sy = m.ty;
             boolean bridge = isBridgeTile(mr, sx, sy);
             int tileZ = m.plane + (bridge ? 1 : 0);
-
             if (tileZ != viewZ) continue;
 
             int tx = sx - ox;
@@ -602,18 +619,10 @@ public final class MinimapAtlasExporter {
             int type = wall.getType();
 
             if (type == 0 || type == 2) {
-                if (ori == 0) {
-                    hi[base] = color; hi[base + hiW] = color; hi[base + hiW*2] = color; hi[base + hiW*3] = color;
-                }
-                else if (ori == 1) {
-                    hi[base] = color; hi[base+1] = color; hi[base+2] = color; hi[base+3] = color;
-                }
-                else if (ori == 2) {
-                    int b = base + (pxPerTile - 1); hi[b] = color; hi[b + hiW] = color; hi[b + hiW*2] = color; hi[b + hiW*3] = color;
-                }
-                else if (ori == 3) {
-                    int b = base + hiW*(pxPerTile - 1); hi[b] = color; hi[b+1] = color; hi[b+2] = color; hi[b+3] = color;
-                }
+                if (ori == 0) { hi[base] = color; hi[base + hiW] = color; hi[base + hiW*2] = color; hi[base + hiW*3] = color; }
+                else if (ori == 1) { hi[base] = color; hi[base+1] = color; hi[base+2] = color; hi[base+3] = color; }
+                else if (ori == 2) { int b = base + (pxPerTile - 1); hi[b] = color; hi[b + hiW] = color; hi[b + hiW*2] = color; hi[b + hiW*3] = color; }
+                else if (ori == 3) { int b = base + hiW*(pxPerTile - 1); hi[b] = color; hi[b+1] = color; hi[b+2] = color; hi[b+3] = color; }
             }
             if (type == 3) {
                 if (ori == 0) hi[base] = color;
@@ -724,9 +733,6 @@ public final class MinimapAtlasExporter {
     }
 
     private static byte[] requestMapSync(int fileId, int regionHash) throws Exception {
-        byte[] cached = MAP_CACHE.get(fileId);
-        if (cached != null) return cached;
-
         Client client = Client.getSingleton();
         if (client == null) throw new IllegalStateException("Client singleton is null");
         MapResponseWaiter waiter = new MapResponseWaiter(fileId);
@@ -737,9 +743,6 @@ public final class MinimapAtlasExporter {
             if (!ok) {
                 System.out.println("[Export] Timeout waiting for map id=" + fileId + " (region " + regionHash + ")");
                 return null;
-            }
-            if (waiter.result != null) {
-                MAP_CACHE.putIfAbsent(fileId, waiter.result);
             }
             return waiter.result;
         } finally {
@@ -815,10 +818,6 @@ public final class MinimapAtlasExporter {
     private static byte[] loadNeighbor(int rx, int ry, MapType type) throws Exception {
         int id = MapIndexLoader.resolve(rx, ry, type);
         if (id == -1) return null;
-        byte[] cached = MAP_CACHE.get(id);
-        if (cached != null) return cached;
-        byte[] data = requestMapSync(id, (rx << 8) | ry);
-        if (data != null) MAP_CACHE.putIfAbsent(id, data);
-        return data;
+        return requestMapSync(id, (rx << 8) | ry);
     }
 }

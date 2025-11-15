@@ -1,16 +1,20 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 buildscript {
     repositories {
         mavenCentral()
     }
 }
 
-apply plugin: 'application'
-apply plugin: 'java-library'
-apply plugin: 'com.github.johnrengelman.shadow'
-apply plugin: 'java'
-apply plugin: 'org.beryx.runtime'
+apply plugin: "application"
+apply plugin: "java-library"
+apply plugin: "java"
+apply plugin: "com.gradleup.shadow"
+apply plugin: "org.beryx.runtime"
 
-group = 'Editor UI'
+group = "Editor UI"
+
+mainClassName = "com.rspsi.ui.LauncherWindow"
 
 run {
     standardInput = System.in
@@ -18,79 +22,91 @@ run {
 
 // In this section you declare the dependencies for your production and test code
 dependencies {
-    api project(':Client')
-    api(group: 'org.controlsfx', name: 'controlsfx', version: '11.2.2') {
-        exclude group: 'org.openjfx'
+    api project(":Client")
+
+    api(group: "org.controlsfx", name: "controlsfx", version: "11.2.2") {
+        exclude group: "org.openjfx"
     }
-    api('com.jfoenix:jfoenix:9.0.10') {
-        exclude group: 'org.openjfx'
+    api("com.jfoenix:jfoenix:9.0.10") {
+        exclude group: "org.openjfx"
     }
 }
 
-mainClassName = 'com.rspsi.LauncherWindow'
+tasks.withType(ShadowJar).configureEach {
+    archiveBaseName.set("RSPSi-Editor")
+    archiveVersion.set("")
+    archiveClassifier.set("")
+
+    manifest {
+        attributes(
+                "Main-Class": "com.rspsi.ui.LauncherWindow"
+        )
+    }
+}
 
 runtime {
-    options = ['--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages']
+    options = ["--strip-debug", "--compress", "2", "--no-header-files", "--no-man-pages"]
     modules = [
-            'javafx.base',
-            'java.desktop',
-            'javafx.graphics',
-            'javafx.controls',
-            'javafx.fxml',
-            'javafx.swing',
-            'java.naming',
-            'java.logging',
-            'java.management',
-            'java.xml',
-            'jdk.unsupported',
-            'java.sql',
-            'javafx.media',
-            'java.scripting',
-            'jdk.jfr',
-            'jdk.unsupported.desktop',
-            'java.datatransfer']
+            "javafx.base",
+            "java.desktop",
+            "javafx.graphics",
+            "javafx.controls",
+            "javafx.fxml",
+            "javafx.swing",
+            "java.naming",
+            "java.logging",
+            "java.management",
+            "java.xml",
+            "jdk.unsupported",
+            "java.sql",
+            "javafx.media",
+            "java.scripting",
+            "jdk.jfr",
+            "jdk.unsupported.desktop",
+            "java.datatransfer"
+    ]
 
     jpackage {
         installerOptions = [
         ]
-        installerType = project.findProperty('installerType') ?: "msi"
-// we will pass this from the command line (example: -PinstallerType=msi)
-        if (installerType == 'msi') {
-            imageOptions += ['--icon', 'src/main/resources/images/logo128.ico']
+        installerType = project.findProperty("installerType") ?: "msi"
+        // we will pass this from the command line (example: -PinstallerType=msi)
+        if (installerType == "msi") {
+            imageOptions += ["--icon", "src/main/resources/images/logo128.ico"]
 
             installerOptions += [
-                    '-t', 'msi',
-                    '--win-per-user-install',
-                    '--win-dir-chooser',
-                    '--win-menu',
-                    '--win-shortcut']
-            imageOptions += ['--win-console']
+                    "-t", "msi",
+                    "--win-per-user-install",
+                    "--win-dir-chooser",
+                    "--win-menu",
+                    "--win-shortcut"
+            ]
+            imageOptions += ["--win-console"]
         }
-        if (installerType == 'pkg') {
-            imageOptions += ['--icon', 'src/main/resources/pdfdecorator/gui/icon.icns']
+        if (installerType == "pkg") {
+            imageOptions += ["--icon", "src/main/resources/pdfdecorator/gui/icon.icns"]
         }
-        if (installerType in ['deb', 'rpm']) {
-            imageOptions += ['--icon', 'src/main/resources/images/logo128.png']
+        if (installerType in ["deb", "rpm"]) {
+            imageOptions += ["--icon", "src/main/resources/images/logo128.png"]
             installerOptions += [
-                    '--linux-menu-group', 'Office',
-                    '--linux-shortcut'
+                    "--linux-menu-group", "Office",
+                    "--linux-shortcut"
             ]
         }
-        if (installerType == 'deb') {
+        if (installerType == "deb") {
             installerOptions += [
-                    '--linux-deb-maintainer', 'office@walczak.it'
+                    "--linux-deb-maintainer", "office@walczak.it"
             ]
         }
-        if (installerType == 'rpm') {
+        if (installerType == "rpm") {
             installerOptions += [
-                    '--linux-rpm-license-type', 'GPLv3'
+                    "--linux-rpm-license-type", "GPLv3"
             ]
         }
     }
-
 }
 
 application {
     mainClassName = "com.rspsi.ui.LauncherWindow"
-    applicationName = 'RSPSi'
+    applicationName = "RSPSi"
 }
