@@ -128,15 +128,19 @@ public class ObjectDefinitionLoaderOSRS extends ObjectDefinitionLoader {
 				definition.setAmbientLighting(buffer.readByte());
 			} else if (opcode == 39) {
 				definition.setLightDiffusion(buffer.readByte());
-			} else if (opcode >= 30 && opcode < 39) {
-				String[] interactions = new String[10];
+            } else if (opcode >= 30 && opcode < 39) {
+                String[] interactions = definition.getInteractions();
+                if (interactions == null) {
+                    interactions = new String[10];
+                }
 
-				interactions[opcode - 30] = buffer.readOSRSString();
-				if (interactions[opcode - 30].equalsIgnoreCase("hidden")) {
-					interactions[opcode - 30] = null;
-				}
-				definition.setInteractions(interactions);
-			} else if (opcode == 40) {
+                interactions[opcode - 30] = buffer.readOSRSString();
+                if (interactions[opcode - 30] != null && interactions[opcode - 30].equalsIgnoreCase("hidden")) {
+                    interactions[opcode - 30] = null;
+                }
+
+                definition.setInteractions(interactions);
+            } else if (opcode == 40) {
 				int count = buffer.readUByte();
 				int[] originalColours = new int[count];
 				int[] replacementColours = new int[count];
@@ -231,7 +235,11 @@ public class ObjectDefinitionLoaderOSRS extends ObjectDefinitionLoader {
 			} else if (opcode == 89) {
 				definition.setRandomizeAnimStart(true);
 			} else if (opcode == 90) {
-				// defer anim start
+                // defer anim start
+            } else if (opcode == 94) { //New for 235
+                definition.setUnknown94(true);
+            } else if (opcode == 95) { //New for 235
+                definition.setSoundVisibility(buffer.readUByte());
 			} else if (opcode == 249) {
 				int var1 = buffer.readUByte();
 				for (int var2 = 0; var2 < var1; var2++) {

@@ -28,8 +28,10 @@ public final class ObjectDefinition {
 	public static FixedLongKeyMap<Mesh> models = new FixedLongKeyMap<Mesh>(500);
 	private static Mesh[] parts = new Mesh[4];
 
+    private boolean unknown94; //New for 235
+    private int soundVisibility; //New for 235
 
-	public static void dispose() {
+    public static void dispose() {
 		baseModels.clear();
 		models.clear();
 	}
@@ -397,7 +399,9 @@ public final class ObjectDefinition {
 		varbit = -1;
 		varp = -1;
 		morphisms = null;
-	}
+        unknown94 = false; //New for 235
+        soundVisibility = 0; //New for 235
+    }
 
 	public int getHash() {
 		final int prime = 337;
